@@ -36,7 +36,7 @@ class TimeSeriesModelGenerator:
         self.early_stopping_rounds: int = early_stopping_rounds
 
     def generate_splits(self, data: pd.DataFrame):
-        data.index = data.index.tz_localize(None)  # убираем таймзону
+        data.index = data.index.tz_localize(None)  # убираем временной пояс
         periods = data.index.to_period(self.cv_frequency)
         unique_periods = periods.unique()
 
@@ -245,7 +245,9 @@ class TimeSeriesModelGenerator:
         for model in models:
             models_dict[model.model_type] = model
 
-        # декомпозиция
-        decompose_model = self.generate_decompose_model()
-        models_dict[ModelType.decompose] = decompose_model
+        # модель на данных декомпозиции
+        if ModelType.decompose in self.models_types:
+            decompose_model = self.generate_decompose_model()
+            models_dict[ModelType.decompose] = decompose_model
+
         self.time_series.models_data = models_dict

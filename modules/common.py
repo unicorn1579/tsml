@@ -15,9 +15,11 @@ class ModelType(NamedTuple):
     xgb_regressor = 'xgb_regressor'
     decompose = 'decompose'
 
+
 @dataclass
 class ModelParams:
     max_depth: int = None
+
 
 class DecompositionPart(NamedTuple):
     observed = 'observed'
@@ -54,13 +56,15 @@ class Metrics:
                 MetricName.mape.value: mean_absolute_percentage_error(self.observation_data, self.prediction_data),
                 MetricName.wape.value: np.sum(np.abs(self.observation_data - self.prediction_data)) / np.sum(
                     self.observation_data),
-                MetricName.fa_mape.value: 1 - mean_absolute_percentage_error(self.observation_data, self.prediction_data),
+                MetricName.fa_mape.value: 1 - mean_absolute_percentage_error(self.observation_data,
+                                                                             self.prediction_data),
                 MetricName.fa_wape.value: 1 - np.sum(np.abs(self.observation_data - self.prediction_data)) / np.sum(
                     self.observation_data)
             }
 
     def get_metrics_names(self) -> List[str]:
-         return list(self.values.keys())
+        return list(self.values.keys())
+
 
 @dataclass
 class ModelData:
@@ -103,6 +107,13 @@ class TimeSeries:
     data_decomposed: pd.DataFrame = None
     models_data: Dict[ModelType, ModelData] = None
     important_features: Dict[DecompositionPart, List[str]] = field(default_factory=dict)
+
+
+class TimeSeriesPlotParams(NamedTuple):
+    ticket_name: str = None
+    data_column_name: str = None
+    metrics_names: List[MetricName] = None
+    models_types: List[ModelType] = None
 
 
 class TimeSeriesPlot:
@@ -190,7 +201,11 @@ class TimeSeriesPlot:
         plt.show()
 
     @staticmethod
-    def plot_processed_prediction_data(time_series: TimeSeries) -> None:
+    def plot_processed_prediction_data(
+            time_series: TimeSeries,
+            metrics_names: List[MetricName] = None,
+            models_types: List[ModelType] = None
+    ) -> None:
         if time_series.data_processed is None or time_series.data_processed.empty or not time_series.models_data:
             return
         y_column = DecompositionPart.observed
@@ -213,7 +228,7 @@ class TimeSeriesPlot:
         )
 
         for model_type, model_data in time_series.models_data.items():
-            if model_data is None:
+            if model_data is None or (models_types and model_type not in models_types):
                 continue
             y_prediction = model_data.predict(x_data)
 
@@ -221,11 +236,11 @@ class TimeSeriesPlot:
                 continue
 
             metrics = Metrics(observation_data=y_observation, prediction_data=y_prediction)
-
+            metrics_names = metrics_names if metrics_names else metrics.values.keys()
             metrics_str = ", ".join(
                 f"{name}={value:.4f}"
                 for name, value in metrics.values.items()
-                if value is not None
+                if value is not None and name in metrics_names
             )
 
             plt.plot(
@@ -245,11 +260,16 @@ class TimeSeriesPlot:
         plt.show()
 
     @staticmethod
-    def plot_validate_data(time_series: TimeSeries, time_series_validate: TimeSeries) -> None:
+    def plot_validate_data(
+            time_series_source: TimeSeries,
+            time_series_validate: TimeSeries,
+            metrics_names: List[MetricName] = None,
+            models_types: List[ModelType] = None
+    ) -> None:
         if (
-                time_series_validate.data_processed
-                is None or time_series_validate.data_processed.empty
-                or not time_series.models_data
+                time_series_validate.data_processed is None
+                or time_series_validate.data_processed.empty
+                or not time_series_source.models_data
         ):
             return
         y_column = DecompositionPart.observed
@@ -269,8 +289,8 @@ class TimeSeriesPlot:
             alpha=0.7
         )
 
-        for model_type, model_data in time_series.models_data.items():
-            if model_data is None:
+        for model_type, model_data in time_series_source.models_data.items():
+            if model_data is None or (models_types and model_type not in models_types):
                 continue
             y_prediction = model_data.predict(x_data)
 
@@ -278,11 +298,11 @@ class TimeSeriesPlot:
                 continue
 
             metrics = Metrics(observation_data=y_observation, prediction_data=y_prediction)
-
+            metrics_names = metrics_names if metrics_names else metrics.values.keys()
             metrics_str = ", ".join(
                 f"{name}={value:.4f}"
                 for name, value in metrics.values.items()
-                if value is not None
+                if value is not None and name in metrics_names
             )
 
             plt.plot(
@@ -292,7 +312,7 @@ class TimeSeriesPlot:
                 alpha=0.8
             )
 
-        plt.title(f"{time_series.ticket_name} — Model Predictions vs Observed")
+        plt.title(f"{time_series_source.ticket_name} — Model Predictions vs Observed")
         plt.xlabel("Time")
         plt.ylabel(y_column)
         plt.grid(True)

@@ -211,33 +211,34 @@ class TimeSeriesProcessor:
                 )
                 / self.time_series.data_processed[DecompositionPart.seasonal].std()
         )
+        # Добавление нормализованного тренда
+        trend = self.time_series.data_processed[DecompositionPart.trend]
+        self.time_series.data_processed[f'{DecompositionPart.trend}__normalize'] = (
+                (trend - trend.mean()) / trend.std(ddof=0)
+        )
 
     def decompose_important_features_find(self) -> None:
-        for part in [
-            DecompositionPart.observed,
-            DecompositionPart.trend,
-            DecompositionPart.seasonal
-        ]:
+        decompose_parts = [DecompositionPart.observed, DecompositionPart.trend, DecompositionPart.seasonal]
+        for part in decompose_parts:
             # Корреляция признаков с данными одной из частей временного ряда
             correlation = self.time_series.data_processed.corr(method=self.correlation_method)[part]
 
             # Поиск значимых признаков
             selected_features = correlation.drop(labels=part) \
                 .loc[lambda x: x.abs() > self.correlation_threshold].index.tolist()
-            # Убираем оригинальные данные из частей декомпозиции
-            selected_features = [feature for feature in selected_features if feature != DecompositionPart.observed]
+            # Убираем данные декомпозиции
+            selected_features = [
+                feature for feature in selected_features
+                if feature not in decompose_parts and feature != f'{DecompositionPart.trend}__normalize'
+            ]
 
             self.time_series.important_features[part] = selected_features
 
     def features_processing(self) -> None:
         self.features_generation()
-        # Нормализация только тренда
-        trend = self.time_series.data_processed[DecompositionPart.trend]
-        self.time_series.data_processed[DecompositionPart.trend] = (trend - trend.mean()) / trend.std(ddof=0)
         self.decompose_important_features_find()
 
     def process(self) -> None:
         self.transform()
         self.decompose()
         self.features_processing()
-
